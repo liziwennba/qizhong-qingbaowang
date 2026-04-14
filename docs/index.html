@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="theme-color" content="#2563eb" />
+  <title>队伍查询</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="hero">
+      <div>
+        <h1>队伍查询</h1>
+        <p>输入玩家名，查看其对应队伍</p>
+      </div>
+      <div class="meta" id="metaInfo"></div>
+    </header>
+
+    <section class="search-card">
+      <input id="searchInput" type="text" placeholder="输入人名，例如：0号执剑人" autocomplete="off" />
+      <button id="searchBtn">查询</button>
+    </section>
+
+    <section id="suggestionsSection" class="section hidden">
+      <h2>可能是这些人</h2>
+      <div id="suggestions" class="chips"></div>
+    </section>
+
+    <section id="resultSection" class="section hidden">
+      <div class="section-head">
+        <div>
+          <h2 id="playerName">-</h2>
+          <p id="playerStats" class="sub"></p>
+        </div>
+      </div>
+      <div id="latestCard"></div>
+      <div>
+        <h3>全部队伍</h3>
+        <div id="lineupList" class="lineup-list"></div>
+      </div>
+      <div>
+        <h3>最近记录</h3>
+        <div id="recentList" class="recent-list"></div>
+      </div>
+    </section>
+
+    <section id="emptySection" class="empty">
+      <p>还没查询。先输入一个人名试试。</p>
+    </section>
+  </div>
+  <script src="player-data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
