@@ -1,4 +1,3 @@
-
 const db = window.PLAYER_DB;
 const searchInput = document.getElementById('searchInput');
 const searchBtn = document.getElementById('searchBtn');
@@ -17,6 +16,15 @@ metaInfo.textContent = `共 ${db.playerCount} 名玩家 · ${db.updatedAt}`;
 
 function norm(text) {
   return String(text || '').trim().toLowerCase().replace(/\s+/g, '');
+}
+
+function escapeHtml(text) {
+  return String(text || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function findMatches(keyword) {
@@ -49,21 +57,64 @@ function showSuggestions(items) {
   suggestionsSection.classList.remove('hidden');
 }
 
+function renderSkills(skills) {
+  if (!skills || !skills.length) return '<div class="skill-empty">未记录技能</div>';
+  return `<ul class="skill-list">${skills.map(skill => `<li>${escapeHtml(skill)}</li>`).join('')}</ul>`;
+}
+
+function slotCard(label, slot) {
+  const metaBits = [slot?.red, slot?.level].filter(Boolean);
+  const meta = metaBits.length
+    ? metaBits.map(item => `<span class="mini-tag">${escapeHtml(item)}</span>`).join('')
+    : '<span class="mini-tag">未记录</span>';
+  return `
+    <div class="slot">
+      <div class="slot-top">
+        <span class="slot-label">${escapeHtml(label)}</span>
+        <div class="slot-meta">${meta}</div>
+      </div>
+      <div class="general-name">${escapeHtml(slot?.name || '-')}</div>
+      <div class="skill-title">技能</div>
+      ${renderSkills(slot?.skills || [])}
+    </div>
+  `;
+}
+
 function lineupCard(item, isLatest = false) {
   const types = (item.recordTypes || []).join('、') || '未知';
+  const teamRedTag = item.teamRed ? `<div class="tag">阵容红度：${escapeHtml(item.teamRed)}</div>` : '';
   return `
     <div class="card">
       ${isLatest ? '<div class="latest-title">最新队伍</div>' : ''}
-      <div class="lineup">${item.lineupText}</div>
-      <div class="grid3">
-        <div class="slot"><span>大营</span>${item.main || '-'}</div>
-        <div class="slot"><span>中军</span>${item.middle || '-'}</div>
-        <div class="slot"><span>前锋</span>${item.front || '-'}</div>
+      <div class="lineup">${escapeHtml(item.lineupText)}</div>
+      <div class="detail-grid">
+        ${slotCard('大营', item.mainSlot)}
+        ${slotCard('中军', item.middleSlot)}
+        ${slotCard('前锋', item.frontSlot)}
       </div>
       <div class="info">
+        ${teamRedTag}
         <div class="tag">出现 ${item.count} 次</div>
-        <div class="tag">最近：${item.latestTime || '-'}</div>
-        <div class="tag">记录：${types}</div>
+        <div class="tag">最近：${escapeHtml(item.latestTime || '-')}</div>
+        <div class="tag">记录：${escapeHtml(types)}</div>
+      </div>
+    </div>
+  `;
+}
+
+function recentRecordCard(item) {
+  const teamRed = item.teamRed ? ` · 阵容红度 ${escapeHtml(item.teamRed)}` : '';
+  return `
+    <div class="row-card">
+      <div class="recent-top">
+        <strong>${escapeHtml(item.time || '-')}</strong>
+        <span class="small">${escapeHtml(item.recordType || '未知记录')}${teamRed}</span>
+      </div>
+      <div class="recent-lineup">${escapeHtml(item.lineupText)}</div>
+      <div class="recent-grid">
+        <div class="recent-slot"><span>大营</span>${escapeHtml(item.mainSlot?.name || '-')} · ${escapeHtml(item.mainSlot?.red || '未记红度')} · ${escapeHtml(item.mainSlot?.level || '未记等级')}</div>
+        <div class="recent-slot"><span>中军</span>${escapeHtml(item.middleSlot?.name || '-')} · ${escapeHtml(item.middleSlot?.red || '未记红度')} · ${escapeHtml(item.middleSlot?.level || '未记等级')}</div>
+        <div class="recent-slot"><span>前锋</span>${escapeHtml(item.frontSlot?.name || '-')} · ${escapeHtml(item.frontSlot?.red || '未记红度')} · ${escapeHtml(item.frontSlot?.level || '未记等级')}</div>
       </div>
     </div>
   `;
@@ -74,16 +125,10 @@ function renderPlayer(name) {
   if (!player) return;
   const latest = player.latestLineup || player.lineups[0];
   playerName.textContent = player.name;
-  playerStats.textContent = `共 ${player.totalRecords} 条记录 · ${player.lineupCount} 套不同队伍`;
+  playerStats.textContent = `共 ${player.totalRecords} 条记录 · ${player.lineupCount} 套不同配置`;
   latestCard.innerHTML = latest ? lineupCard(latest, true) : '';
   lineupList.innerHTML = player.lineups.map(item => lineupCard(item, false)).join('');
-  recentList.innerHTML = player.recentRecords.map(item => `
-    <div class="row-card">
-      <div><strong>${item.time || '-'}</strong></div>
-      <div class="small">${item.recordType || '未知记录'}</div>
-      <div style="margin-top:6px;">${item.lineupText}</div>
-    </div>
-  `).join('');
+  recentList.innerHTML = player.recentRecords.map(item => recentRecordCard(item)).join('');
   resultSection.classList.remove('hidden');
   emptySection.classList.add('hidden');
   showSuggestions([]);
