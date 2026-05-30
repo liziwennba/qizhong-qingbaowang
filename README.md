@@ -32,6 +32,8 @@ http://127.0.0.1:8000
 
 ### 指定端口 / 分支 / 远程
 
+默认会使用当前 Git 分支作为推送分支；也可以手动指定：
+
 ```bash
 TEAM_LOOKUP_PORT=8000 TEAM_GIT_REMOTE=origin TEAM_GIT_BRANCH=main bash run_team_lookup.sh
 ```

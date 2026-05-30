@@ -1,4 +1,9 @@
-const LOCAL_DB_KEY = 'team_lookup_player_db_v2';
+const LOCAL_DB_KEY = 'team_lookup_player_db_v3';
+const LEGACY_LOCAL_DB_KEYS = [
+  'team_lookup_player_db_v1',
+  'team_lookup_player_db_v2',
+];
+purgeLegacyLocalStorage();
 const db = loadInitialDb();
 let currentPlayerName = '';
 let backendSaveAvailable = true;
@@ -39,13 +44,28 @@ function loadInitialDb() {
     const saved = localStorage.getItem(LOCAL_DB_KEY);
     if (!saved) return baseDb;
     const parsed = JSON.parse(saved);
-    if (parsed && parsed.players && parsed.playerList) {
+    if (isCompatibleSavedDb(baseDb, parsed)) {
       return parsed;
     }
+    localStorage.removeItem(LOCAL_DB_KEY);
   } catch (error) {
     console.warn('读取本地保存失败', error);
   }
   return baseDb;
+}
+
+function purgeLegacyLocalStorage() {
+  try {
+    LEGACY_LOCAL_DB_KEYS.forEach(key => localStorage.removeItem(key));
+  } catch (error) {
+    console.warn('清理旧赛季本地缓存失败', error);
+  }
+}
+
+function isCompatibleSavedDb(baseDb, savedDb) {
+  if (!savedDb || !savedDb.players || !savedDb.playerList) return false;
+  if (!baseDb.sourceSignature) return true;
+  return savedDb.sourceSignature === baseDb.sourceSignature;
 }
 
 function refreshSaveModeText() {

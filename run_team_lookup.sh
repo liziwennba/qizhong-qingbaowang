@@ -5,7 +5,12 @@ cd "$SCRIPT_DIR"
 
 PORT="${TEAM_LOOKUP_PORT:-8000}"
 REMOTE="${TEAM_GIT_REMOTE:-origin}"
-BRANCH="${TEAM_GIT_BRANCH:-main}"
+if [ -n "${TEAM_GIT_BRANCH:-}" ]; then
+  BRANCH="$TEAM_GIT_BRANCH"
+else
+  BRANCH="$(git branch --show-current 2>/dev/null || true)"
+  BRANCH="${BRANCH:-main}"
+fi
 AUTO_PUSH_FLAG=""
 if [ "${TEAM_AUTO_PUSH:-0}" = "1" ]; then
   AUTO_PUSH_FLAG="--auto-push"

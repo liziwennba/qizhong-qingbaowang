@@ -2,21 +2,22 @@
 from collections import defaultdict
 from datetime import datetime
 from openpyxl import load_workbook
-import json, os, sys
+import hashlib, json, os, sys
 
 if len(sys.argv) < 3:
-    print("用法: python convert_xlsx_to_player_data.py 输入.xlsx 输出/player-data.js")
+    print("用法: python convert_xlsx_to_player_data.py 输入.xlsx 输出/player-data.js [输出/player-data.json]")
     sys.exit(1)
 
 xlsx = sys.argv[1]
 out_js = sys.argv[2]
+out_json = sys.argv[3] if len(sys.argv) >= 4 else os.path.splitext(out_js)[0] + '.json'
 wb = load_workbook(xlsx, read_only=True, data_only=True)
 ws = wb[wb.sheetnames[0]]
 rows = ws.iter_rows(values_only=True)
 headers = next(rows)
 header_map = {str(v).strip(): i for i, v in enumerate(headers) if v is not None}
 
-name_idx = 0
+name_idx = header_map.get('名字', 0)
 red_sum_idx = header_map.get('阵容红度')
 main_idx = header_map['大营武将']
 middle_idx = header_map['中军武将']
@@ -76,6 +77,14 @@ def sort_key_time(s):
         return datetime.min
 
 
+def source_signature(path):
+    h = hashlib.sha256()
+    with open(path, 'rb') as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b''):
+            h.update(chunk)
+    return h.hexdigest()[:16]
+
+
 def safe_value(row, idx):
     if idx is None or idx >= len(row):
         return None
@@ -91,6 +100,8 @@ def lineup_name_text(main_slot, middle_slot, front_slot):
 
 
 player_records = defaultdict(list)
+record_count = 0
+latest_record_time = ''
 for row in rows:
     if not row:
         continue
@@ -108,6 +119,9 @@ for row in rows:
     team_red_text = '' if team_red is None else str(team_red).strip()
     record_type = str(safe_value(row, record_type_idx) or '未知记录').strip() or '未知记录'
     t = norm_time(safe_value(row, time_idx))
+    record_count += 1
+    if sort_key_time(t) > sort_key_time(latest_record_time):
+        latest_record_time = t
     player_records[name].append({
         'time': t,
         'recordType': record_type,
@@ -182,7 +196,11 @@ for name in sorted(player_records.keys(), key=lambda x: x.lower()):
     })
 
 payload = {
-    'updatedAt': f'由 {os.path.basename(xlsx)} 自动生成',
+    'updatedAt': f'由 {os.path.basename(xlsx)} 自动生成（{record_count} 条记录）',
+    'sourceFile': os.path.basename(xlsx),
+    'sourceSignature': source_signature(xlsx),
+    'sourceRecordCount': record_count,
+    'sourceLatestRecordTime': latest_record_time,
     'playerCount': len(players),
     'players': players,
     'playerList': player_list,
@@ -192,3 +210,7 @@ with open(out_js, 'w', encoding='utf-8') as f:
     json.dump(payload, f, ensure_ascii=False, separators=(',', ':'))
     f.write(';\n')
 print(f'已生成: {out_js}')
+with open(out_json, 'w', encoding='utf-8') as f:
+    json.dump(payload, f, ensure_ascii=False, indent=2)
+    f.write('\n')
+print(f'已生成: {out_json}')

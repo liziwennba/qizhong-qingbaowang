@@ -15,10 +15,27 @@ PLAYER_JSON_PATH = DOCS_DIR / 'player-data.json'
 BACKUP_DIR = ROOT / 'backups'
 BACKUP_DIR.mkdir(exist_ok=True)
 
+
+def get_default_git_branch() -> str:
+    try:
+        proc = subprocess.run(
+            ['git', 'branch', '--show-current'],
+            cwd=str(ROOT),
+            text=True,
+            capture_output=True,
+        )
+        branch = proc.stdout.strip()
+        if proc.returncode == 0 and branch:
+            return branch
+    except Exception:
+        pass
+    return 'main'
+
+
 CONFIG = {
     'port': int(os.environ.get('TEAM_LOOKUP_PORT', '8000')),
     'git_remote': os.environ.get('TEAM_GIT_REMOTE', 'origin'),
-    'git_branch': os.environ.get('TEAM_GIT_BRANCH', 'main'),
+    'git_branch': os.environ.get('TEAM_GIT_BRANCH') or get_default_git_branch(),
     'auto_push': os.environ.get('TEAM_AUTO_PUSH', '0') == '1',
     'commit_prefix': os.environ.get('TEAM_GIT_COMMIT_PREFIX', 'Update player-data'),
 }
