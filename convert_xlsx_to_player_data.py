@@ -25,8 +25,8 @@ front_idx = header_map['前锋武将']
 main_skill_idx = header_map.get('大营技能')
 middle_skill_idx = header_map.get('中军技能')
 front_skill_idx = header_map.get('前锋技能')
-record_type_idx = header_map['记录类型']
-time_idx = header_map['记录时间']
+record_type_idx = header_map.get('记录类型')
+time_idx = header_map.get('记录时间')
 
 
 def clean_lines(cell):
@@ -117,7 +117,7 @@ for row in rows:
     front_slot = extract_slot(safe_value(row, front_idx), safe_value(row, front_skill_idx))
     team_red = safe_value(row, red_sum_idx)
     team_red_text = '' if team_red is None else str(team_red).strip()
-    record_type = str(safe_value(row, record_type_idx) or '未知记录').strip() or '未知记录'
+    record_type = str(safe_value(row, record_type_idx) or '队伍表记录').strip() or '队伍表记录'
     t = norm_time(safe_value(row, time_idx))
     record_count += 1
     if sort_key_time(t) > sort_key_time(latest_record_time):
