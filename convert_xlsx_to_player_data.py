@@ -2,7 +2,7 @@
 from collections import defaultdict
 from datetime import datetime
 from openpyxl import load_workbook
-import hashlib, json, os, sys
+import hashlib, json, os, re, sys
 
 if len(sys.argv) < 3:
     print("用法: python convert_xlsx_to_player_data.py 输入.xlsx 输出/player-data.js [输出/player-data.json]")
@@ -83,6 +83,24 @@ def source_signature(path):
         for chunk in iter(lambda: f.read(1024 * 1024), b''):
             h.update(chunk)
     return h.hexdigest()[:16]
+
+
+def refresh_index_cache_buster(out_js_path, signature):
+    docs_dir = os.path.dirname(os.path.abspath(out_js_path))
+    index_path = os.path.join(docs_dir, 'index.html')
+    if not os.path.exists(index_path):
+        return
+
+    script_name = os.path.basename(out_js_path)
+    with open(index_path, 'r', encoding='utf-8') as f:
+        text = f.read()
+
+    pattern = rf'src="{re.escape(script_name)}(?:\?v=[^"]*)?"'
+    updated = re.sub(pattern, f'src="{script_name}?v={signature}"', text)
+    if updated != text:
+        with open(index_path, 'w', encoding='utf-8') as f:
+            f.write(updated)
+        print(f'已更新缓存版本: {index_path}')
 
 
 def safe_value(row, idx):
@@ -195,10 +213,11 @@ for name in sorted(player_records.keys(), key=lambda x: x.lower()):
         'latestLineupText': latest['lineupText'] if latest else '',
     })
 
+signature = source_signature(xlsx)
 payload = {
     'updatedAt': f'由 {os.path.basename(xlsx)} 自动生成（{record_count} 条记录）',
     'sourceFile': os.path.basename(xlsx),
-    'sourceSignature': source_signature(xlsx),
+    'sourceSignature': signature,
     'sourceRecordCount': record_count,
     'sourceLatestRecordTime': latest_record_time,
     'playerCount': len(players),
@@ -214,3 +233,4 @@ with open(out_json, 'w', encoding='utf-8') as f:
     json.dump(payload, f, ensure_ascii=False, indent=2)
     f.write('\n')
 print(f'已生成: {out_json}')
+refresh_index_cache_buster(out_js, signature)
