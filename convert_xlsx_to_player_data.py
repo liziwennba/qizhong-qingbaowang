@@ -12,21 +12,45 @@ xlsx = sys.argv[1]
 out_js = sys.argv[2]
 out_json = sys.argv[3] if len(sys.argv) >= 4 else os.path.splitext(out_js)[0] + '.json'
 wb = load_workbook(xlsx, read_only=True, data_only=True)
-ws = wb[wb.sheetnames[0]]
-rows = ws.iter_rows(values_only=True)
-headers = next(rows)
-header_map = {str(v).strip(): i for i, v in enumerate(headers) if v is not None}
 
-name_idx = header_map.get('名字', 0)
-red_sum_idx = header_map.get('阵容红度')
-main_idx = header_map['大营武将']
-middle_idx = header_map['中军武将']
-front_idx = header_map['前锋武将']
-main_skill_idx = header_map.get('大营技能')
-middle_skill_idx = header_map.get('中军技能')
-front_skill_idx = header_map.get('前锋技能')
-record_type_idx = header_map.get('记录类型')
-time_idx = header_map.get('记录时间')
+
+def workbook_sheet_contexts(workbook):
+    contexts = []
+    required_headers = ['大营武将', '中军武将', '前锋武将']
+    for ws in workbook.worksheets:
+        rows = ws.iter_rows(values_only=True)
+        try:
+            headers = next(rows)
+        except StopIteration:
+            continue
+
+        header_map = {str(v).strip(): i for i, v in enumerate(headers) if v is not None}
+        missing = [h for h in required_headers if h not in header_map]
+        if missing:
+            print(f'跳过工作表 {ws.title}: 缺少 {", ".join(missing)}')
+            continue
+
+        contexts.append({
+            'sheetName': ws.title,
+            'rows': rows,
+            'nameIdx': header_map.get('名字', 0),
+            'redSumIdx': header_map.get('阵容红度'),
+            'mainIdx': header_map['大营武将'],
+            'middleIdx': header_map['中军武将'],
+            'frontIdx': header_map['前锋武将'],
+            'mainSkillIdx': header_map.get('大营技能'),
+            'middleSkillIdx': header_map.get('中军技能'),
+            'frontSkillIdx': header_map.get('前锋技能'),
+            'recordTypeIdx': header_map.get('记录类型'),
+            'timeIdx': header_map.get('记录时间'),
+        })
+    return contexts
+
+
+sheet_contexts = workbook_sheet_contexts(wb)
+if not sheet_contexts:
+    print('未找到包含队伍字段的工作表')
+    sys.exit(1)
 
 
 def clean_lines(cell):
@@ -120,38 +144,39 @@ def lineup_name_text(main_slot, middle_slot, front_slot):
 player_records = defaultdict(list)
 record_count = 0
 latest_record_time = ''
-for row in rows:
-    if not row:
-        continue
-    name = row[name_idx] if name_idx < len(row) else None
-    if name is None:
-        continue
-    name = str(name).strip()
-    if not name:
-        continue
+for ctx in sheet_contexts:
+    for row in ctx['rows']:
+        if not row:
+            continue
+        name = row[ctx['nameIdx']] if ctx['nameIdx'] < len(row) else None
+        if name is None:
+            continue
+        name = str(name).strip()
+        if not name:
+            continue
 
-    main_slot = extract_slot(safe_value(row, main_idx), safe_value(row, main_skill_idx))
-    middle_slot = extract_slot(safe_value(row, middle_idx), safe_value(row, middle_skill_idx))
-    front_slot = extract_slot(safe_value(row, front_idx), safe_value(row, front_skill_idx))
-    team_red = safe_value(row, red_sum_idx)
-    team_red_text = '' if team_red is None else str(team_red).strip()
-    record_type = str(safe_value(row, record_type_idx) or '队伍表记录').strip() or '队伍表记录'
-    t = norm_time(safe_value(row, time_idx))
-    record_count += 1
-    if sort_key_time(t) > sort_key_time(latest_record_time):
-        latest_record_time = t
-    player_records[name].append({
-        'time': t,
-        'recordType': record_type,
-        'teamRed': team_red_text,
-        'main': main_slot.get('name', ''),
-        'middle': middle_slot.get('name', ''),
-        'front': front_slot.get('name', ''),
-        'mainSlot': main_slot,
-        'middleSlot': middle_slot,
-        'frontSlot': front_slot,
-        'lineupText': lineup_name_text(main_slot, middle_slot, front_slot),
-    })
+        main_slot = extract_slot(safe_value(row, ctx['mainIdx']), safe_value(row, ctx['mainSkillIdx']))
+        middle_slot = extract_slot(safe_value(row, ctx['middleIdx']), safe_value(row, ctx['middleSkillIdx']))
+        front_slot = extract_slot(safe_value(row, ctx['frontIdx']), safe_value(row, ctx['frontSkillIdx']))
+        team_red = safe_value(row, ctx['redSumIdx'])
+        team_red_text = '' if team_red is None else str(team_red).strip()
+        record_type = str(safe_value(row, ctx['recordTypeIdx']) or '队伍表记录').strip() or '队伍表记录'
+        t = norm_time(safe_value(row, ctx['timeIdx']))
+        record_count += 1
+        if sort_key_time(t) > sort_key_time(latest_record_time):
+            latest_record_time = t
+        player_records[name].append({
+            'time': t,
+            'recordType': record_type,
+            'teamRed': team_red_text,
+            'main': main_slot.get('name', ''),
+            'middle': middle_slot.get('name', ''),
+            'front': front_slot.get('name', ''),
+            'mainSlot': main_slot,
+            'middleSlot': middle_slot,
+            'frontSlot': front_slot,
+            'lineupText': lineup_name_text(main_slot, middle_slot, front_slot),
+        })
 
 players = {}
 player_list = []
@@ -218,6 +243,7 @@ payload = {
     'updatedAt': f'由 {os.path.basename(xlsx)} 自动生成（{record_count} 条记录）',
     'sourceFile': os.path.basename(xlsx),
     'sourceSignature': signature,
+    'sourceSheets': [ctx['sheetName'] for ctx in sheet_contexts],
     'sourceRecordCount': record_count,
     'sourceLatestRecordTime': latest_record_time,
     'playerCount': len(players),
